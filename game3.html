@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Game 3 — Pixel Runner 🦸</title>
+
+  <!--
+  ╔══════════════════════════════════════════════════════╗
+  ║   GAME 3: PIXEL RUNNER                              ║
+  ║   Difficulty: ⭐⭐⭐ ADVANCED                        ║
+  ║                                                      ║
+  ║   WHAT YOU WILL LEARN:                               ║
+  ║   ✅ Simulating gravity with a velocity variable     ║
+  ║   ✅ requestAnimationFrame (smooth game loop)        ║
+  ║   ✅ Scrolling backgrounds with CSS animation        ║
+  ║   ✅ localStorage (saving high scores forever)       ║
+  ║   ✅ Obstacle spawning with increasing difficulty    ║
+  ║   ✅ Game states (idle / playing / dead)             ║
+  ╚══════════════════════════════════════════════════════╝
+
+  HOW TO PLAY:
+  - Press SPACE or click/tap to jump
+  - Jump over the pixel obstacles
+  - Land on platforms to gain bonus points
+  - How far can you run?
+  -->
+
+  <style>
+
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    :root {
+      --bg:     #1a0a2e;
+      --ground: #2d1b4e;
+      --green:  #39ff14;
+      --red:    #ff2244;
+      --yellow: #ffe600;
+      --blue:   #00cfff;
+      --pink:   #ff00aa;
+      --font:   'Press Start 2P', monospace;
+      --ground-h: 80px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      font-family: var(--font);
+      color: white;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ════════════════════════════════════
+       BACKGROUND LAYERS (parallax scroll)
+       Different speeds = depth illusion!
+    ════════════════════════════════════ */
+
+    /* Sky gradient */
+    #sky {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: linear-gradient(
+        180deg,
+        #0d0022 0%,
+        #1a0a2e 60%,
+        #2d1b4e 100%
+      );
+      z-index: 0;
+    }
+
+    /* Stars layer (far, slow) */
+    #bg-stars {
+      position: fixed;
+      top: 0; left: 0;
+      width: 200%; height: 100%;
+      z-index: 1;
+      /* We animate the layer moving left — creates scrolling effect */
+      animation: scroll-slow 30s linear infinite;
+    }
+
+    /* City/mountains layer (medium speed) */
+    #bg-city {
+      position: fixed;
+      bottom: var(--ground-h);
+      left: 0;
+      width: 200%;
+      height: 200px;
+      z-index: 2;
+      animation: scroll-medium 12s linear infinite;
+    }
+
+    @keyframes scroll-slow {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+
+    @keyframes scroll-medium {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+
+    /* ════════════════════════════════════
+       THE GROUND
+    ════════════════════════════════════ */
+    #ground {
+      position: fixed;
+      bottom: 0; left: 0;
+      width: 100%;
+      height: var(--ground-h);
+      background: var(--ground);
+      border-top: 4px solid #4a2d7a;
+      z-index: 5;
+
+      /* Scrolling ground texture */
+      background-image: repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 30px,
+        rgba(255,255,255,0.03) 30px,
+        rgba(255,255,255,0.03) 60px
+      );
+      background-size: 60px 100%;
+      animation: scroll-ground 0.5s linear infinite;
+    }
+
+    @keyframes scroll-ground {
+      from { background-position: 0 0; }
+      to   { background-position: -60px 0; }
+    }
+
+    /* ════════════════════════════════════
+       HUD
+    ════════════════════════════════════ */
+    #hud {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 20;
+      background: rgba(0,0,0,0.4);
+    }
+
+    #hud span { font-size: clamp(7px, 1.8vw, 11px); }
+    #score-display  { color: var(--yellow); }
+    #best-display   { color: var(--pink); }
+    #speed-display  { color: var(--blue); }
+
+    /* ════════════════════════════════════
+       PLAYER CHARACTER
+    ════════════════════════════════════ */
+    #player {
+      position: fixed;
+      z-index: 10;
+
+      /* Player is always at the same X (the world moves, not the player) */
+      left: 12%;
+
+      /* We control Y position via JavaScript */
+      font-size: 36px;
+
+      filter: drop-shadow(0 0 10px var(--pink));
+      transition: filter 0.1s;
+    }
+
+    /* Player squash on landing */
+    #player.land {
+      animation: squash 0.15s ease-out;
+    }
+
+    @keyframes squash {
+      0%   { transform: scaleX(1.3) scaleY(0.7); }
+      100% { transform: scaleX(1) scaleY(1); }
+    }
+
+    /* Player death spin */
+    #player.dead {
+      animation: death-spin 0.5s ease-in forwards;
+    }
+
+    @keyframes death-spin {
+      0%   { transform: rotate(0deg); opacity: 1; }
+      100% { transform: rotate(720deg); opacity: 0; }
+    }
+
+    /* ════════════════════════════════════
+       OBSTACLES (created by JS)
+    ════════════════════════════════════ */
+    .obstacle {
+      position: fixed;
+      z-index: 9;
+      bottom: var(--ground-h);
+      font-size: 36px;
+      pointer-events: none;
+      /* No CSS animation needed — JS moves them left each frame */
+    }
+
+    /* ════════════════════════════════════
+       COINS (bonus points)
+    ════════════════════════════════════ */
+    .coin {
+      position: fixed;
+      z-index: 8;
+      font-size: 20px;
+      pointer-events: none;
+      animation: coin-bob 0.5s ease-in-out infinite alternate;
+    }
+
+    @keyframes coin-bob {
+      from { transform: translateY(0); }
+      to   { transform: translateY(-8px); }
+    }
+
+    /* ════════════════════════════════════
+       SCORE POPUP (+points text)
+    ════════════════════════════════════ */
+    .score-pop {
+      position: fixed;
+      z-index: 15;
+      font-size: 12px;
+      color: var(--yellow);
+      pointer-events: none;
+      animation: pop-up 0.8s ease-out forwards;
+    }
+
+    @keyframes pop-up {
+      0%   { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-50px); }
+    }
+
+    /* ════════════════════════════════════
+       OVERLAYS
+    ════════════════════════════════════ */
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(10, 0, 30, 0.88);
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 30;
+    }
+
+    .overlay.active { display: flex; }
+
+    .overlay h1 {
+      font-size: clamp(14px, 4vw, 28px);
+      color: var(--pink);
+      text-shadow: 3px 3px 0 #660044;
+    }
+
+    .overlay h2 {
+      font-size: clamp(12px, 3vw, 20px);
+      color: var(--red);
+    }
+
+    .overlay p {
+      font-size: clamp(7px, 1.5vw, 10px);
+      color: #bbb;
+      text-align: center;
+      line-height: 2.2;
+      max-width: 420px;
+    }
+
+    .stat-box {
+      background: rgba(255,255,255,0.05);
+      border: 2px solid #333;
+      padding: 16px 30px;
+      text-align: center;
+    }
+
+    .stat-box p { font-size: clamp(8px, 1.8vw, 11px); color: var(--green); margin: 6px 0; }
+
+    .btn {
+      font-family: var(--font);
+      font-size: clamp(8px, 1.8vw, 12px);
+      padding: 12px 28px;
+      border: none;
+      cursor: pointer;
+      letter-spacing: 1px;
+      margin-top: 8px;
+    }
+
+    .btn-pink { background: var(--pink); color: #000; }
+    .btn-link { background: transparent; color: #555; text-decoration: none; font-size: 8px; font-family: var(--font); }
+    .btn:hover { filter: brightness(1.3); transform: scale(1.05); }
+
+    #tap-hint {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 8px;
+      color: #444;
+      z-index: 6;
+      white-space: nowrap;
+      animation: blink 1s step-start infinite;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    .nav-back {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      font-family: var(--font);
+      font-size: 8px;
+      color: #333;
+      text-decoration: none;
+      z-index: 100;
+    }
+    .nav-back:hover { color: var(--pink); }
+
+    /* Ground grid lines (retro floor look) */
+    #ground::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 4px;
+      background: repeating-linear-gradient(
+        90deg,
+        var(--pink) 0px, var(--pink) 2px,
+        transparent 2px, transparent 20px
+      );
+      opacity: 0.3;
+    }
+
+  </style>
+</head>
+<body>
+
+  <a class="nav-back" href="index.html">◀ BACK</a>
+
+  <!-- Background layers -->
+  <div id="sky"></div>
+
+  <!-- Stars (SVG drawn with JS) -->
+  <svg id="bg-stars" xmlns="http://www.w3.org/2000/svg"></svg>
+
+  <!-- City skyline (SVG drawn with JS) -->
+  <svg id="bg-city" xmlns="http://www.w3.org/2000/svg"></svg>
+
+  <!-- Ground -->
+  <div id="ground"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <span id="score-display">SCORE: <span id="score">0</span></span>
+    <span id="best-display">BEST: <span id="best">0</span></span>
+    <span id="speed-display">SPEED: <span id="speed">1</span>x</span>
+  </div>
+
+  <!-- Player -->
+  <div id="player">🦸</div>
+
+  <!-- Tap hint -->
+  <div id="tap-hint">SPACE / CLICK to jump</div>
+
+  <!-- Start Screen -->
+  <div class="overlay active" id="start-screen">
+    <h1>🦸 PIXEL RUNNER</h1>
+    <p>
+      Jump over obstacles to keep running!<br>
+      Collect ⭐ coins for bonus points.<br>
+      The longer you run, the faster it gets!
+    </p>
+    <p style="color: var(--yellow); font-size: 9px;">
+      Press SPACE or tap to jump.<br>
+      Double-jump is available!
+    </p>
+    <button class="btn btn-pink" onclick="startGame()">▶ START RUNNING</button>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div class="overlay" id="game-over">
+    <h2>💀 YOU CRASHED!</h2>
+    <div class="stat-box">
+      <p>SCORE: <span id="final-score">0</span></p>
+      <p>BEST:  <span id="final-best">0</span></p>
+    </div>
+    <p id="new-best-msg" style="color: var(--yellow); display:none; font-size:10px;">
+      🏆 NEW HIGH SCORE!
+    </p>
+    <button class="btn btn-pink" onclick="startGame()">▶ RUN AGAIN</button>
+    <a class="btn btn-link" href="index.html">BACK TO MENU</a>
+  </div>
+
+  <script>
+
+    // ════════════════════════════════════════════════════════
+    //   STEP 1: REFERENCES & CONSTANTS
+    // ════════════════════════════════════════════════════════
+    const playerEl   = document.getElementById('player');
+    const scoreEl    = document.getElementById('score');
+    const bestEl     = document.getElementById('best');
+    const speedEl    = document.getElementById('speed');
+    const gameOverEl = document.getElementById('game-over');
+    const startEl    = document.getElementById('start-screen');
+    const finalScore = document.getElementById('final-score');
+    const finalBest  = document.getElementById('final-best');
+    const newBestMsg = document.getElementById('new-best-msg');
+    const tapHint    = document.getElementById('tap-hint');
+
+    const GROUND_Y = 80;            // how tall the ground is (px)
+    const PLAYER_H = 40;            // player height in px
+    const GRAVITY  = 0.6;           // how fast player falls per frame
+    const JUMP_POWER = -14;         // velocity when jumping (negative = upward)
+
+    // ════════════════════════════════════════════════════════
+    //   STEP 2: GAME STATE
+    // ════════════════════════════════════════════════════════
+    let playerY      = 0;           // player's Y position from bottom of screen
+    let velocityY    = 0;           // current vertical speed (+ = down, - = up)
+    let jumpsLeft    = 2;           // double jump counter
+    let onGround     = false;       // is player standing?
+    let score        = 0;
+    let gameSpeed    = 5;           // how fast obstacles move (pixels per frame)
+    let gameRunning  = false;
+    let frameCount   = 0;           // total frames since game started
+    let animFrameId  = null;        // stores requestAnimationFrame ID
+
+    // ── Load best score from localStorage ─────────────────
+    // localStorage saves data even when the page is closed!
+    // Think of it like a mini save file for your game.
+    let bestScore = parseInt(localStorage.getItem('pixelRunnerBest') || '0');
+    bestEl.textContent = bestScore;
+
+    // ════════════════════════════════════════════════════════
+    //   STEP 3: DRAW BACKGROUND GRAPHICS WITH SVG
+    //   SVG = Scalable Vector Graphics (shapes in code)
+    // ════════════════════════════════════════════════════════
+    function drawStars() {
+      const svg = document.getElementById('bg-stars');
+      let html = '';
+      for (let i = 0; i < 100; i++) {
+        const x = Math.random() * 100; // percentage across
+        const y = Math.random() * 80;
+        const r = Math.random() < 0.2 ? 2 : 1;
+        html += `<circle cx="${x}%" cy="${y}%" r="${r}" fill="white" opacity="${Math.random() * 0.7 + 0.3}"/>`;
+      }
+      svg.innerHTML = html;
+    }
+
+    function drawCity() {
+      const svg = document.getElementById('bg-city');
+      const w = window.innerWidth * 2;
+      const h = 200;
+      let html = '';
+
+      // Draw silhouette buildings
+      const colors = ['#1a0a3e', '#200d4a', '#150829'];
+      for (let x = 0; x < w; x += Math.random() * 60 + 30) {
+        const bh = Math.random() * 120 + 40;
+        const bw = Math.random() * 40 + 20;
+        const c  = colors[Math.floor(Math.random() * colors.length)];
+        html += `<rect x="${x}" y="${h - bh}" width="${bw}" height="${bh}" fill="${c}"/>`;
+
+        // Windows
+        for (let wy = h - bh + 10; wy < h - 10; wy += 18) {
+          for (let wx = x + 5; wx < x + bw - 5; wx += 14) {
+            const lit = Math.random() > 0.5;
+            if (lit) html += `<rect x="${wx}" y="${wy}" width="6" height="8" fill="#ffe680" opacity="0.6"/>`;
+          }
+        }
+      }
+
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      svg.innerHTML = html;
+    }
+
+    drawStars();
+    drawCity();
+
+    // ════════════════════════════════════════════════════════
+    //   STEP 4: JUMP LOGIC
+    //   Jump = set velocityY to a negative number
+    //   Gravity each frame brings it back down
+    // ════════════════════════════════════════════════════════
+    function jump() {
+      if (!gameRunning) {
+        startGame();
+        return;
+      }
+
+      if (jumpsLeft > 0) {
+        velocityY  = JUMP_POWER;   // send player upward
+        jumpsLeft--;               // use one jump
+        onGround = false;
+      }
+    }
+
+    // Input listeners
+    document.addEventListener('keydown', function(e) {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        jump();
+      }
+    });
+
+    document.addEventListener('click', jump);
+    document.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      jump();
+    }, { passive: false });
+
+    // ════════════════════════════════════════════════════════
+    //   STEP 5: THE GAME LOOP (using requestAnimationFrame)
+    //   
+    //   requestAnimationFrame is better than setInterval for
+    //   games — it syncs to your monitor's refresh rate (60fps)
+    //   and pauses when the tab is hidden (saves battery).
+    // ════════════════════════════════════════════════════════
+    function gameLoop() {
+      if (!gameRunning) return;
+
+      frameCount++;
+
+      // ── Apply gravity ─────────────────────────────────────
+      // Each frame, increase downward speed by GRAVITY
+      velocityY += GRAVITY;
+
+      // Move player by velocityY
+      playerY -= velocityY;
+
+      // ── Floor collision ───────────────────────────────────
+      // playerY can't go below 0 (the ground)
+      if (playerY <= 0) {
+        playerY   = 0;
+        velocityY = 0;
+        jumpsLeft = 2;   // reset double jump on landing
+
+        if (!onGround) {
+          // Just landed — add squash animation
+          onGround = true;
+          playerEl.classList.add('land');
+          setTimeout(() => playerEl.classList.remove('land'), 150);
+        }
+      } else {
+        onGround = false;
+      }
+
+      // Update player visual position
+      // We position from the BOTTOM using:  bottom = GROUND_Y + playerY
+      playerEl.style.bottom = (GROUND_Y + playerY) + 'px';
+
+      // ── Move obstacles & coins ────────────────────────────
+      moveObjects();
+
+      // ── Check collisions ──────────────────────────────────
+      if (checkCollision()) {
+        endGame();
+        return; // stop loop
+      }
+
+      // ── Update score ──────────────────────────────────────
+      score++;
+      if (frameCount % 10 === 0) {
+        scoreEl.textContent = Math.floor(score / 10);
+      }
+
+      // ── Increase speed over time ──────────────────────────
+      if (frameCount % 300 === 0) {
+        gameSpeed += 0.5;
+        speedEl.textContent = (gameSpeed / 5).toFixed(1);
+        updateGroundSpeed();
+      }
+
+      // ── Spawn obstacles ───────────────────────────────────
+      // Spawn more often at higher speeds
+      const spawnRate = Math.max(60, 120 - gameSpeed * 5);
+      if (frameCount % Math.floor(spawnRate) === 0) {
+        spawnObstacle();
+      }
+
+      // Occasionally spawn coins
+      if (frameCount % 90 === 0 && Math.random() > 0.4) {
+        spawnCoin();
+      }
+
+      // Request the next frame — this creates the loop!
+      animFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    // ════════════════════════════════════════════════════════
+    //   STEP 6: SPAWN OBSTACLES
+    // ════════════════════════════════════════════════════════
+    const OBSTACLE_TYPES = [
+      { emoji: '🌵', h: 40 },
+      { emoji: '🪨', h: 30 },
+      { emoji: '💎', h: 30 },
+      { emoji: '⚡', h: 40 },
+      { emoji: '🔮', h: 35 },
+    ];
+
+    function spawnObstacle() {
+      const type = OBSTACLE_TYPES[Math.floor(Math.random() * OBSTACLE_TYPES.length)];
+      const el   = document.createElement('div');
+      el.className   = 'obstacle';
+      el.textContent = type.emoji;
+      el.dataset.w   = '32';    // collision width
+      el.dataset.h   = type.h; // collision height
+      el.style.right = '-60px'; // start off-screen to the right
+      document.body.appendChild(el);
+    }
+
+    // ════════════════════════════════════════════════════════
+    //   STEP 7: SPAWN COINS
+    // ════════════════════════════════════════════════════════
+    function spawnCoin() {
+      const el = document.createElement('div');
+      el.className = 'coin';
+      el.textContent = '⭐';
+      // Coins appear at various heights
+      const coinY = GROUND_Y + Math.random() * 80 + 40;
+      el.style.bottom = coinY + 'px';
+      el.style.right  = '-40px';
+      document.body.appendChild(el);
+    }
+
+    // ════════════════════════════════════════════════════════
+    //   STEP 8: MOVE OBJECTS (obstacles and coins)
+    //   Instead of animating them with CSS, we move them
+    //   every frame in JS so we can detect collisions.
+    // ════════════════════════════════════════════════════════
+    function moveObjects() {
+      // Move all obstacles
+      document.querySelectorAll('.obstacle').forEach(function(el) {
+        const currentRight = parseFloat(el.style.right) || -60;
+        el.style.right = (currentRight + gameSpeed) + 'px';
+
+        // Remove if off screen
+        if (currentRight > window.innerWidth + 100) {
+          el.remove();
+        }
+      });
+
+      // Move all coins
+      document.querySelectorAll('.coin').forEach(function(el) {
+        const currentRight = parseFloat(el.style.right) || -40;
+        el.style.right = (currentRight + gameSpeed) + 'px';
+
+        if (currentRight > window.innerWidth + 100) {
+          el.remove();
+        }
+      });
+    }
+
+    // ════════════════════════════════════════════════════════
+    //   STEP 9: COLLISION DETECTION
+    //   We get the screen position of each object and compare
+    //   it to the player's position.
+    // ════════════════════════════════════════════════════════
+    function checkCollision() {
+      const playerRect = playerEl.getBoundingClientRect();
+
+      // Shrink hitbox slightly for fairness (add padding)
+      const pad = 10;
+      const pLeft   = playerRect.left   + pad;
+      const pRight  = playerRect.right  - pad;
+      const pTop    = playerRect.top    + pad;
+      const pBottom = playerRect.bottom - pad;
+
+      // Check obstacles
+      const obstacles = document.querySelectorAll('.obstacle');
+      for (let obs of obstacles) {
+        const r = obs.getBoundingClientRect();
+        if (pRight > r.left + pad && pLeft < r.right - pad &&
+            pBottom > r.top + pad && pTop  < r.bottom - pad) {
+          return true; // collision!
+        }
+      }
+
+      // Check coins (collect them instead of dying)
+      const coins = document.querySelectorAll('.coin');
+      for (let coin of coins) {
+        const r = coin.getBoundingClientRect();
+        if (pRight > r.left && pLeft < r.right &&
+            pBottom > r.top && pTop  < r.bottom) {
+          coin.remove();
+          collectCoin(r.left, r.top);
+        }
+      }
+
+      return false; // no collision
+    }
+
+    // ════════════════════════════════════════════════════════
+    //   STEP 10: COLLECT A COIN
+    // ════════════════════════════════════════════════════════
+    function collectCoin(x, y) {
+      score += 50;    // bonus points
+      scoreEl.textContent = Math.floor(score / 10);
+
+      // Show +50 text popup
+      const pop = document.createElement('div');
+      pop.className   = 'score-pop';
+      pop.textContent = '+50⭐';
+      pop.style.left  = x + 'px';
+      pop.style.top   = y + 'px';
+      document.body.appendChild(pop);
+      setTimeout(() => pop.remove(), 800);
+    }
+
+    // ════════════════════════════════════════════════════════
+    //   STEP 11: GROUND ANIMATION SPEED
+    // ════════════════════════════════════════════════════════
+    function updateGroundSpeed() {
+      const duration = Math.max(0.1, 0.5 / (gameSpeed / 5));
+      document.getElementById('ground').style.animationDuration = duration + 's';
+    }
+
+    // ════════════════════════════════════════════════════════
+    //   STEP 12: START AND END GAME
+    // ════════════════════════════════════════════════════════
+    function startGame() {
+      // Reset variables
+      score       = 0;
+      gameSpeed   = 5;
+      frameCount  = 0;
+      playerY     = 0;
+      velocityY   = 0;
+      jumpsLeft   = 2;
+      onGround    = true;
+      gameRunning = true;
+
+      // Clear UI
+      scoreEl.textContent = '0';
+      speedEl.textContent = '1.0';
+
+      // Remove player death class
+      playerEl.classList.remove('dead');
+      playerEl.style.opacity = '1';
+
+      // Hide overlays
+      gameOverEl.classList.remove('active');
+      startEl.classList.remove('active');
+      tapHint.style.display = 'none';
+
+      // Remove any existing obstacles/coins
+      document.querySelectorAll('.obstacle, .coin').forEach(el => el.remove());
+
+      // Cancel previous animation frame if any
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+
+      // Start the loop!
+      animFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+      gameRunning = false;
+
+      // Player death animation
+      playerEl.classList.add('dead');
+
+      // Calculate final score
+      const finalScoreVal = Math.floor(score / 10);
+
+      // Check and save high score
+      // localStorage.setItem saves a value with a key name
+      // localStorage.getItem retrieves it later
+      if (finalScoreVal > bestScore) {
+        bestScore = finalScoreVal;
+        localStorage.setItem('pixelRunnerBest', bestScore);
+        bestEl.textContent  = bestScore;
+        newBestMsg.style.display = 'block';
+      } else {
+        newBestMsg.style.display = 'none';
+      }
+
+      // Show game over after short delay
+      setTimeout(function() {
+        finalScore.textContent = finalScoreVal;
+        finalBest.textContent  = bestScore;
+        gameOverEl.classList.add('active');
+        tapHint.style.display  = 'block';
+      }, 600);
+    }
+
+  </script>
+
+</body>
+</html>

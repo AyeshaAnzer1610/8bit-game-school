@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Game 1 — Pixel Clicker 👾</title>
+
+  <!--
+  ╔══════════════════════════════════════════════════════╗
+  ║   GAME 1: PIXEL CLICKER                             ║
+  ║   Difficulty: ⭐ BEGINNER                           ║
+  ║                                                      ║
+  ║   WHAT YOU WILL LEARN:                               ║
+  ║   ✅ CSS flexbox layout                              ║
+  ║   ✅ CSS animations (moving elements on screen)      ║
+  ║   ✅ JavaScript click events                         ║
+  ║   ✅ Score counter with innerHTML                    ║
+  ║   ✅ Random positioning with Math.random()           ║
+  ╚══════════════════════════════════════════════════════╝
+
+  HOW TO PLAY:
+  - An alien randomly appears on screen
+  - Click it before it disappears!
+  - You have 30 seconds — get the highest score!
+  -->
+
+  <style>
+
+    /* ── STEP 1: Import a pixel font ───────────────────────────
+       Google Fonts gives us "Press Start 2P" — a free 8-bit font.
+       We use @import inside <style>, or link in <head>.           */
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    /* ── STEP 2: CSS Custom Properties (variables) ─────────────
+       Define your color palette once, use it everywhere.
+       Change one value here → it updates everywhere!             */
+    :root {
+      --bg:     #0d0d0d;
+      --green:  #39ff14;
+      --red:    #ff2244;
+      --yellow: #ffe600;
+      --blue:   #00cfff;
+      --font:   'Press Start 2P', monospace;
+    }
+
+    /* ── STEP 3: Reset all browser default styles ──────────────
+       Browsers add margins/padding by default. We remove them.   */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box; /* padding doesn't expand size */
+    }
+
+    /* ── STEP 4: Body setup ────────────────────────────────────
+       We make the body fill the full screen.                     */
+    body {
+      background: var(--bg);
+      font-family: var(--font);
+      color: white;
+      width: 100vw;   /* vw = viewport width (100% of screen) */
+      height: 100vh;  /* vh = viewport height */
+      overflow: hidden; /* hide scrollbars */
+      position: relative; /* needed for absolute children */
+    }
+
+    /* ── STEP 5: HUD (Heads-Up Display — the score bar) ────────
+       display: flex makes children line up in a row.             */
+    #hud {
+      display: flex;
+      justify-content: space-between; /* spread items apart */
+      align-items: center;
+      padding: 16px 24px;
+      background: #111;
+      border-bottom: 3px solid var(--green);
+      position: relative;
+      z-index: 10;
+    }
+
+    #hud span {
+      font-size: clamp(8px, 2vw, 13px);
+    }
+
+    #score-display { color: var(--green);  }
+    #timer-display { color: var(--yellow); }
+    #miss-display  { color: var(--red);    }
+
+    /* ── STEP 6: The game arena ─────────────────────────────── */
+    #arena {
+      width: 100%;
+      height: calc(100vh - 60px); /* full height minus HUD */
+      position: relative;
+      cursor: crosshair; /* custom cursor */
+    }
+
+    /* ── STEP 7: The alien (the thing you click) ────────────── */
+    #alien {
+      position: absolute; /* lets us use top/left to place it */
+      font-size: 48px;
+      cursor: pointer;
+      user-select: none; /* don't highlight text on click */
+      transition: transform 0.1s;
+      filter: drop-shadow(0 0 8px var(--green));
+
+      /* We hide it at start with display:none */
+      display: none;
+    }
+
+    /* When you hover over the alien, it grows slightly */
+    #alien:hover {
+      transform: scale(1.2);
+    }
+
+    /* ── STEP 8: CSS Animations ─────────────────────────────── 
+       @keyframes defines WHAT happens during the animation.
+       We name it "spin" and define it from 0% to 100%.          */
+    @keyframes spin {
+      0%   { transform: rotate(0deg) scale(1); }
+      50%  { transform: rotate(180deg) scale(1.3); }
+      100% { transform: rotate(360deg) scale(1); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { filter: drop-shadow(0 0 6px var(--green)); }
+      50%       { filter: drop-shadow(0 0 20px var(--green)); }
+    }
+
+    /* Apply the animation to the alien */
+    #alien {
+      animation: spin 1s linear infinite, pulse 0.8s ease-in-out infinite;
+    }
+
+    /* ── STEP 9: Click burst effect ─────────────────────────── */
+    .burst {
+      position: absolute;
+      font-size: 24px;
+      pointer-events: none; /* clicks pass through this */
+      animation: burst-anim 0.6s ease-out forwards;
+      z-index: 5;
+    }
+
+    @keyframes burst-anim {
+      0%   { opacity: 1; transform: scale(0.5) translateY(0); }
+      100% { opacity: 0; transform: scale(1.5) translateY(-40px); }
+    }
+
+    /* ── STEP 10: Game Over screen ───────────────────────────── */
+    #game-over {
+      display: none; /* hidden until game ends */
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 20px;
+      z-index: 20;
+    }
+
+    #game-over h2 {
+      font-size: clamp(16px, 4vw, 28px);
+      color: var(--red);
+      text-shadow: 3px 3px 0 #880000;
+      animation: flicker 1s infinite;
+    }
+
+    @keyframes flicker {
+      0%, 90%, 100% { opacity: 1; }
+      95%            { opacity: 0.4; }
+    }
+
+    #final-score {
+      font-size: clamp(10px, 2.5vw, 16px);
+      color: var(--green);
+    }
+
+    /* ── STEP 11: Buttons ────────────────────────────────────── */
+    button {
+      font-family: var(--font);
+      font-size: clamp(8px, 2vw, 12px);
+      padding: 12px 24px;
+      background: var(--green);
+      color: #000;
+      border: none;
+      cursor: pointer;
+      margin-top: 10px;
+      letter-spacing: 1px;
+    }
+
+    button:hover {
+      background: #fff;
+      transform: scale(1.05);
+    }
+
+    /* ── STEP 12: Start screen ───────────────────────────────── */
+    #start-screen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.9);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 18px;
+      z-index: 20;
+    }
+
+    #start-screen h1 {
+      font-size: clamp(14px, 3.5vw, 24px);
+      color: var(--green);
+      text-shadow: 3px 3px 0 #006600;
+    }
+
+    #start-screen p {
+      font-size: clamp(7px, 1.5vw, 10px);
+      color: #aaa;
+      text-align: center;
+      max-width: 400px;
+      line-height: 2.2;
+    }
+
+    .nav-back {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      font-family: var(--font);
+      font-size: 8px;
+      color: #555;
+      text-decoration: none;
+      z-index: 100;
+    }
+    .nav-back:hover { color: var(--green); }
+
+  </style>
+</head>
+<body>
+
+  <a class="nav-back" href="index.html">◀ BACK</a>
+
+  <!-- ═══ HUD (Score Display) ═══ -->
+  <div id="hud">
+    <span id="score-display">SCORE: <span id="score">0</span></span>
+    <span id="timer-display">TIME: <span id="timer">30</span>s</span>
+    <span id="miss-display">MISS: <span id="misses">0</span></span>
+  </div>
+
+  <!-- ═══ Game Arena ═══ -->
+  <div id="arena">
+
+    <!-- The alien — JavaScript will move it around -->
+    <div id="alien">👾</div>
+
+    <!-- Game Over screen (hidden until time runs out) -->
+    <div id="game-over">
+      <h2>GAME OVER!</h2>
+      <p id="final-score">SCORE: 0</p>
+      <p id="final-misses" style="font-size:9px; color:#ff6666;">MISSED: 0 times</p>
+      <button onclick="startGame()">▶ PLAY AGAIN</button>
+      <a href="index.html" style="font-size:8px; color:#555; margin-top:10px;">BACK TO MENU</a>
+    </div>
+
+    <!-- Start Screen (shown first) -->
+    <div id="start-screen">
+      <h1>👾 PIXEL CLICKER</h1>
+      <p>
+        An alien will appear randomly on screen.<br>
+        CLICK it before it disappears!<br>
+        You have 30 seconds. How high can you score?
+      </p>
+      <button onclick="startGame()">▶ START GAME</button>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       JAVASCRIPT — The game logic goes here
+       
+       In JavaScript:
+       • Variables store data: let score = 0;
+       • Functions do things: function doSomething() { }
+       • Events react to user: element.onclick = function() { }
+       • Timers run code later: setTimeout(fn, ms)
+       • getElementById finds an HTML element by its id=""
+  ════════════════════════════════════════════════════════ -->
+  <script>
+
+    // ── STEP 1: Get references to our HTML elements ──────────
+    // document.getElementById() finds an element by its id attribute
+    const alien       = document.getElementById('alien');
+    const scoreEl     = document.getElementById('score');
+    const timerEl     = document.getElementById('timer');
+    const missEl      = document.getElementById('misses');
+    const gameOverEl  = document.getElementById('game-over');
+    const finalScore  = document.getElementById('final-score');
+    const finalMisses = document.getElementById('final-misses');
+    const startScreen = document.getElementById('start-screen');
+    const arena       = document.getElementById('arena');
+
+    // ── STEP 2: Game state variables ─────────────────────────
+    // Variables remember the current state of our game
+    let score     = 0;   // how many clicks the player got
+    let misses    = 0;   // how many times the alien escaped
+    let timeLeft  = 30;  // seconds remaining
+    let alienTimer   = null; // holds the "auto-hide" timer
+    let countdownTimer = null; // holds the countdown timer
+
+    // ── STEP 3: Move the alien to a random position ──────────
+    function moveAlien() {
+      // Math.random() gives a number between 0 and 1
+      // We multiply it by (arena size - alien size) so it stays on screen
+
+      const arenaW = arena.offsetWidth;   // width of the arena in pixels
+      const arenaH = arena.offsetHeight;  // height of the arena in pixels
+
+      // Random position: between 0 and (arena - 80px for the alien)
+      const randomX = Math.random() * (arenaW - 80);
+      const randomY = Math.random() * (arenaH - 80);
+
+      // Move the alien to that position
+      alien.style.left = randomX + 'px';
+      alien.style.top  = randomY + 'px';
+      alien.style.display = 'block'; // make it visible
+
+      // Clear any previous auto-hide timer
+      clearTimeout(alienTimer);
+
+      // Auto-hide after 1.5 seconds if not clicked
+      alienTimer = setTimeout(function() {
+        hideAlien();
+        misses++;                          // add 1 to misses
+        missEl.textContent = misses;       // update the display
+        moveAlien();                       // show it again somewhere new
+      }, 1500); // 1500 milliseconds = 1.5 seconds
+    }
+
+    // ── STEP 4: Hide the alien ───────────────────────────────
+    function hideAlien() {
+      alien.style.display = 'none';
+    }
+
+    // ── STEP 5: Handle clicking the alien ────────────────────
+    // This function runs every time the alien is clicked
+    alien.onclick = function(event) {
+      // Stop the auto-hide timer
+      clearTimeout(alienTimer);
+
+      // Add 1 to score and update the display
+      score++;
+      scoreEl.textContent = score;
+
+      // Create a visual "+1" burst at the click location
+      createBurst(event.clientX, event.clientY);
+
+      // Hide alien, then move it to a new spot
+      hideAlien();
+      setTimeout(moveAlien, 300); // wait 0.3 seconds then reappear
+    };
+
+    // ── STEP 6: Create a "+1" burst effect ───────────────────
+    function createBurst(x, y) {
+      // Create a new <div> element
+      const burst = document.createElement('div');
+      burst.className = 'burst'; // add the CSS class
+      burst.textContent = '+1! 💥';
+      burst.style.left = (x - 20) + 'px';
+      burst.style.top  = (y - 20) + 'px';
+
+      // Add it to the arena
+      arena.appendChild(burst);
+
+      // Remove it after the animation finishes (0.6s)
+      setTimeout(function() {
+        burst.remove();
+      }, 600);
+    }
+
+    // ── STEP 7: The countdown timer ──────────────────────────
+    function startCountdown() {
+      // setInterval runs a function every X milliseconds
+      countdownTimer = setInterval(function() {
+        timeLeft--;                       // subtract 1 from timeLeft
+        timerEl.textContent = timeLeft;  // update the display
+
+        // Flash red when low on time
+        if (timeLeft <= 5) {
+          timerEl.parentElement.style.color = '#ff2244';
+        }
+
+        // When time hits 0, end the game
+        if (timeLeft <= 0) {
+          endGame();
+        }
+      }, 1000); // runs every 1000ms = 1 second
+    }
+
+    // ── STEP 8: Start the game ───────────────────────────────
+    function startGame() {
+      // Reset all values
+      score    = 0;
+      misses   = 0;
+      timeLeft = 30;
+
+      // Update the displays
+      scoreEl.textContent = '0';
+      timerEl.textContent = '30';
+      missEl.textContent  = '0';
+      timerEl.parentElement.style.color = '';
+
+      // Hide screens
+      gameOverEl.style.display  = 'none';
+      startScreen.style.display = 'none';
+
+      // Clear any existing timers
+      clearInterval(countdownTimer);
+      clearTimeout(alienTimer);
+
+      // Start the game!
+      moveAlien();
+      startCountdown();
+    }
+
+    // ── STEP 9: End the game ─────────────────────────────────
+    function endGame() {
+      // Stop all timers
+      clearInterval(countdownTimer);
+      clearTimeout(alienTimer);
+
+      // Hide the alien
+      hideAlien();
+
+      // Show game over screen with final scores
+      finalScore.textContent  = 'SCORE: ' + score;
+      finalMisses.textContent = 'MISSED: ' + misses + ' times';
+      gameOverEl.style.display = 'flex';
+    }
+
+  </script>
+
+</body>
+</html>

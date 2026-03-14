@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>8-Bit Game School 🎮</title>
+
+  <!-- =====================================================
+       STEP 1: LINKING YOUR CSS (styles go inside <style>)
+       For bigger projects you'd use a separate file:
+       <link rel="stylesheet" href="style.css">
+  ====================================================== -->
+  <style>
+
+    /* ---- STEP 2: IMPORT A PIXEL FONT FROM GOOGLE FONTS ---- */
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    /* ---- STEP 3: CSS VARIABLES (reusable color palette) ---- */
+    :root {
+      --black:   #0a0a0a;
+      --green:   #39ff14;
+      --yellow:  #ffe600;
+      --red:     #ff2244;
+      --blue:    #00cfff;
+      --purple:  #b400ff;
+      --white:   #f0f0f0;
+      --pixel:   'Press Start 2P', monospace;
+    }
+
+    /* ---- STEP 4: RESET & BASE STYLES ---- */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background-color: var(--black);
+      font-family: var(--pixel);
+      color: var(--white);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ---- STEP 5: SCANLINE EFFECT (pure CSS retro look) ---- */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.15) 2px,
+        rgba(0,0,0,0.15) 4px
+      );
+      pointer-events: none; /* clicks pass through */
+      z-index: 9999;
+    }
+
+    /* ---- STEP 6: HEADER ---- */
+    header {
+      text-align: center;
+      padding: 40px 20px 20px;
+      border-bottom: 4px solid var(--green);
+    }
+
+    .title {
+      font-size: clamp(16px, 4vw, 32px);
+      color: var(--green);
+      text-shadow: 0 0 20px var(--green), 4px 4px 0 #006600;
+      letter-spacing: 2px;
+      animation: flicker 3s infinite;
+    }
+
+    .subtitle {
+      margin-top: 14px;
+      font-size: clamp(8px, 2vw, 12px);
+      color: var(--yellow);
+    }
+
+    /* ---- STEP 7: CSS ANIMATIONS ---- */
+    /* @keyframes defines the animation frames */
+    @keyframes flicker {
+      0%, 95%, 100% { opacity: 1; }
+      96%            { opacity: 0.6; }
+      98%            { opacity: 0.9; }
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-10px); }
+    }
+
+    @keyframes starScroll {
+      from { transform: translateY(0); }
+      to   { transform: translateY(-50%); }
+    }
+
+    /* ---- STEP 8: SCROLLING STAR BACKGROUND ---- */
+    .stars {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 200%;
+      background-image:
+        radial-gradient(1px 1px at 20% 30%, white, transparent),
+        radial-gradient(1px 1px at 80% 10%, white, transparent),
+        radial-gradient(1px 1px at 50% 60%, white, transparent),
+        radial-gradient(1px 1px at 10% 80%, white, transparent),
+        radial-gradient(1px 1px at 90% 50%, white, transparent),
+        radial-gradient(1px 1px at 35% 15%, white, transparent),
+        radial-gradient(1px 1px at 65% 85%, white, transparent),
+        radial-gradient(1px 1px at 25% 55%, white, transparent),
+        radial-gradient(2px 2px at 75% 40%, rgba(0,207,255,0.8), transparent),
+        radial-gradient(2px 2px at 15% 70%, rgba(57,255,20,0.6), transparent);
+      animation: starScroll 20s linear infinite;
+      z-index: -1;
+    }
+
+    /* ---- STEP 9: MAIN LAYOUT ---- */
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    /* ---- STEP 10: SECTION HEADINGS ---- */
+    .section-title {
+      font-size: clamp(10px, 2.5vw, 16px);
+      color: var(--yellow);
+      margin-bottom: 24px;
+      padding-left: 12px;
+      border-left: 4px solid var(--yellow);
+    }
+
+    /* ---- STEP 11: INFO BOXES ---- */
+    .info-box {
+      background: rgba(57,255,20,0.05);
+      border: 2px solid var(--green);
+      padding: 20px;
+      margin-bottom: 30px;
+      font-size: clamp(7px, 1.5vw, 10px);
+      line-height: 2.2;
+      color: #aaffaa;
+    }
+
+    .info-box strong { color: var(--green); }
+    .info-box code {
+      background: rgba(0,0,0,0.5);
+      color: var(--blue);
+      padding: 1px 5px;
+      border: 1px solid #333;
+      font-family: var(--pixel);
+      font-size: 0.9em;
+    }
+
+    /* ---- STEP 12: GAME CARDS ---- */
+    .games-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 24px;
+      margin-top: 20px;
+    }
+
+    .game-card {
+      background: #111;
+      border: 3px solid #333;
+      padding: 0;
+      cursor: pointer;
+      transition: transform 0.1s, border-color 0.2s;
+      text-decoration: none;
+      display: block;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .game-card:hover {
+      transform: translateY(-4px);
+    }
+
+    .game-card:nth-child(1) { border-color: var(--green);  }
+    .game-card:nth-child(2) { border-color: var(--yellow); }
+    .game-card:nth-child(3) { border-color: var(--red);    }
+
+    .game-card:nth-child(1):hover { box-shadow: 0 0 20px var(--green);  }
+    .game-card:nth-child(2):hover { box-shadow: 0 0 20px var(--yellow); }
+    .game-card:nth-child(3):hover { box-shadow: 0 0 20px var(--red);    }
+
+    /* Pixel art preview areas */
+    .card-preview {
+      height: 160px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      border-bottom: 3px solid inherit;
+      font-size: 50px;
+      animation: float 2s ease-in-out infinite;
+    }
+
+    .card-body { padding: 20px; }
+
+    .card-level {
+      font-size: 8px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: clamp(9px, 2vw, 13px);
+      margin-bottom: 10px;
+    }
+
+    .game-card:nth-child(1) .card-title { color: var(--green);  }
+    .game-card:nth-child(2) .card-title { color: var(--yellow); }
+    .game-card:nth-child(3) .card-title { color: var(--red);    }
+
+    .card-desc {
+      font-size: 7px;
+      color: #888;
+      line-height: 2;
+    }
+
+    .card-tag {
+      display: inline-block;
+      margin-top: 12px;
+      font-size: 7px;
+      padding: 4px 8px;
+      border: 1px solid #444;
+      color: #aaa;
+    }
+
+    .play-btn {
+      display: block;
+      width: 100%;
+      margin-top: 16px;
+      padding: 10px;
+      font-family: var(--pixel);
+      font-size: 9px;
+      cursor: pointer;
+      border: none;
+      letter-spacing: 1px;
+    }
+
+    .game-card:nth-child(1) .play-btn { background: var(--green);  color: #000; }
+    .game-card:nth-child(2) .play-btn { background: var(--yellow); color: #000; }
+    .game-card:nth-child(3) .play-btn { background: var(--red);    color: #fff; }
+
+    /* ---- STEP 13: STEPS GUIDE ---- */
+    .steps {
+      list-style: none;
+      margin-top: 20px;
+    }
+
+    .steps li {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      font-size: clamp(7px, 1.5vw, 10px);
+      line-height: 2;
+      color: #ccc;
+    }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      background: var(--blue);
+      color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+    }
+
+    /* ---- STEP 14: FOOTER ---- */
+    footer {
+      text-align: center;
+      padding: 30px;
+      font-size: 8px;
+      color: #444;
+      border-top: 2px solid #222;
+      margin-top: 60px;
+    }
+
+    .blink { animation: blink 1s step-start infinite; }
+
+    /* ---- STEP 15: PIXEL ART CHARACTER (pure CSS) ---- */
+    .pixel-hero {
+      display: grid;
+      grid-template-columns: repeat(8, 12px);
+      grid-template-rows: repeat(8, 12px);
+      gap: 1px;
+      margin: 20px auto;
+      width: fit-content;
+      image-rendering: pixelated;
+    }
+
+    .px { width: 12px; height: 12px; }
+    .p0 { background: transparent; }
+    .p1 { background: #ffcc00; }   /* skin */
+    .p2 { background: #333;    }   /* outline */
+    .p3 { background: #ff2244; }   /* shirt */
+    .p4 { background: #0055ff; }   /* pants */
+    .p5 { background: #ffffff; }   /* eyes */
+
+  </style>
+</head>
+<body>
+
+  <!-- Scrolling star background -->
+  <div class="stars"></div>
+
+  <!-- ========== HEADER ========== -->
+  <header>
+    <h1 class="title">🎮 8-BIT GAME SCHOOL</h1>
+    <p class="subtitle">▶ Learn HTML + CSS + JS by building real games ◀</p>
+  </header>
+
+  <main>
+
+    <!-- ========== SECTION: VS CODE SETUP ========== -->
+    <section style="margin-bottom: 50px;">
+      <h2 class="section-title">📁 STEP 1 — SETTING UP VS CODE</h2>
+
+      <div class="info-box">
+        <strong>What you need:</strong><br><br>
+        1. Download <strong>Visual Studio Code</strong> → code.visualstudio.com<br>
+        2. Install the <strong>"Live Server"</strong> extension (by Ritwick Dey)<br>
+        3. Create a folder on your Desktop called <code>my-games</code><br>
+        4. Open that folder in VS Code: <code>File → Open Folder</code><br>
+        5. Create a new file: <code>game1.html</code><br>
+        6. Right-click the file → <strong>"Open with Live Server"</strong><br><br>
+        <strong>💡 Tip:</strong> Live Server auto-refreshes your browser every time you save!
+      </div>
+
+      <ul class="steps">
+        <li>
+          <span class="step-num">1</span>
+          <span>Every HTML file starts with <code>&lt;!DOCTYPE html&gt;</code> — this tells the browser "this is a webpage".</span>
+        </li>
+        <li>
+          <span class="step-num">2</span>
+          <span>Put all your <strong>CSS styles</strong> inside <code>&lt;style&gt; ... &lt;/style&gt;</code> in the <code>&lt;head&gt;</code> section.</span>
+        </li>
+        <li>
+          <span class="step-num">3</span>
+          <span>Put all your <strong>JavaScript</strong> inside <code>&lt;script&gt; ... &lt;/script&gt;</code> just before the closing <code>&lt;/body&gt;</code> tag.</span>
+        </li>
+        <li>
+          <span class="step-num">4</span>
+          <span>Save your file with <code>Ctrl+S</code> (Windows) or <code>Cmd+S</code> (Mac) — your browser will update automatically!</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ========== SECTION: HTML TEMPLATE ========== -->
+    <section style="margin-bottom: 50px;">
+      <h2 class="section-title">📄 STEP 2 — YOUR STARTER TEMPLATE</h2>
+      <div class="info-box">
+        <strong>Copy this into EVERY new game file:</strong><br><br>
+        <code>&lt;!DOCTYPE html&gt;</code><br>
+        <code>&lt;html lang="en"&gt;</code><br>
+        <code>&nbsp;&nbsp;&lt;head&gt;</code><br>
+        <code>&nbsp;&nbsp;&nbsp;&nbsp;&lt;meta charset="UTF-8"&gt;</code><br>
+        <code>&nbsp;&nbsp;&nbsp;&nbsp;&lt;title&gt;My Game&lt;/title&gt;</code><br>
+        <code>&nbsp;&nbsp;&nbsp;&nbsp;&lt;style&gt;</code><br>
+        <code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/* Your CSS goes here */</code><br>
+        <code>&nbsp;&nbsp;&nbsp;&nbsp;&lt;/style&gt;</code><br>
+        <code>&nbsp;&nbsp;&lt;/head&gt;</code><br>
+        <code>&nbsp;&nbsp;&lt;body&gt;</code><br>
+        <code>&nbsp;&nbsp;&nbsp;&nbsp;&lt;!-- Your HTML goes here --&gt;</code><br>
+        <code>&nbsp;&nbsp;&nbsp;&nbsp;&lt;script&gt;</code><br>
+        <code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// Your JavaScript goes here</code><br>
+        <code>&nbsp;&nbsp;&nbsp;&nbsp;&lt;/script&gt;</code><br>
+        <code>&nbsp;&nbsp;&lt;/body&gt;</code><br>
+        <code>&lt;/html&gt;</code>
+      </div>
+    </section>
+
+    <!-- ========== SECTION: GAMES ========== -->
+    <section>
+      <h2 class="section-title">🕹️ STEP 3 — PICK A GAME TO BUILD</h2>
+      <p style="font-size:8px; color:#888; margin-bottom:24px;">Open the game files in VS Code and follow the comments inside each file!</p>
+
+      <div class="games-grid">
+
+        <!-- GAME 1 -->
+        <a class="game-card" href="game1.html">
+          <div class="card-preview" style="border-bottom: 3px solid var(--green);">👾</div>
+          <div class="card-body">
+            <div class="card-level">BEGINNER • LESSON 1</div>
+            <div class="card-title">PIXEL CLICKER</div>
+            <div class="card-desc">
+              Click the alien before it disappears!
+              Learn: divs, CSS animation,
+              JavaScript click events & score.
+            </div>
+            <span class="card-tag">HTML + CSS + 20 lines JS</span>
+            <button class="play-btn">▶ OPEN GAME 1</button>
+          </div>
+        </a>
+
+        <!-- GAME 2 -->
+        <a class="game-card" href="game2.html">
+          <div class="card-preview" style="border-bottom: 3px solid var(--yellow);">🚀</div>
+          <div class="card-body">
+            <div class="card-level">INTERMEDIATE • LESSON 2</div>
+            <div class="card-title">DODGE BLASTER</div>
+            <div class="card-desc">
+              Move your ship left & right to
+              dodge falling meteors!
+              Learn: keyboard input, collision,
+              setInterval loops.
+            </div>
+            <span class="card-tag">HTML + CSS + 60 lines JS</span>
+            <button class="play-btn">▶ OPEN GAME 2</button>
+          </div>
+        </a>
+
+        <!-- GAME 3 -->
+        <a class="game-card" href="game3.html">
+          <div class="card-preview" style="border-bottom: 3px solid var(--red);">🦸</div>
+          <div class="card-body">
+            <div class="card-level">ADVANCED • LESSON 3</div>
+            <div class="card-title">PIXEL RUNNER</div>
+            <div class="card-desc">
+              Jump over obstacles in this
+              endless side-scroller!
+              Learn: gravity, game loops,
+              CSS transitions & high scores.
+            </div>
+            <span class="card-tag">HTML + CSS + 100 lines JS</span>
+            <button class="play-btn">▶ OPEN GAME 3</button>
+          </div>
+        </a>
+
+      </div>
+    </section>
+
+    <!-- ========== PIXEL ART SECTION ========== -->
+    <section style="margin-top: 60px; text-align:center;">
+      <h2 class="section-title" style="text-align:left;">🎨 BONUS — CSS PIXEL ART</h2>
+      <p style="font-size:8px; color:#888; margin-bottom:20px;">This character is made with ZERO images — just CSS grid!</p>
+
+      <!-- Pure CSS pixel art hero character -->
+      <div class="pixel-hero">
+        <!--  Row 1 -->
+        <div class="px p0"></div><div class="px p2"></div><div class="px p2"></div><div class="px p2"></div><div class="px p2"></div><div class="px p2"></div><div class="px p2"></div><div class="px p0"></div>
+        <!--  Row 2 -->
+        <div class="px p2"></div><div class="px p1"></div><div class="px p1"></div><div class="px p1"></div><div class="px p1"></div><div class="px p1"></div><div class="px p1"></div><div class="px p2"></div>
+        <!--  Row 3 -->
+        <div class="px p2"></div><div class="px p5"></div><div class="px p1"></div><div class="px p2"></div><div class="px p2"></div><div class="px p1"></div><div class="px p5"></div><div class="px p2"></div>
+        <!--  Row 4 -->
+        <div class="px p2"></div><div class="px p1"></div><div class="px p1"></div><div class="px p1"></div><div class="px p1"></div><div class="px p1"></div><div class="px p1"></div><div class="px p2"></div>
+        <!--  Row 5 -->
+        <div class="px p0"></div><div class="px p2"></div><div class="px p3"></div><div class="px p3"></div><div class="px p3"></div><div class="px p3"></div><div class="px p2"></div><div class="px p0"></div>
+        <!--  Row 6 -->
+        <div class="px p2"></div><div class="px p3"></div><div class="px p3"></div><div class="px p3"></div><div class="px p3"></div><div class="px p3"></div><div class="px p3"></div><div class="px p2"></div>
+        <!--  Row 7 -->
+        <div class="px p0"></div><div class="px p2"></div><div class="px p4"></div><div class="px p2"></div><div class="px p2"></div><div class="px p4"></div><div class="px p2"></div><div class="px p0"></div>
+        <!--  Row 8 -->
+        <div class="px p0"></div><div class="px p2"></div><div class="px p2"></div><div class="px p0"></div><div class="px p0"></div><div class="px p2"></div><div class="px p2"></div><div class="px p0"></div>
+      </div>
+
+      <p style="font-size:7px; color:#555; margin-top:10px;">
+        Each colored square = one &lt;div&gt; in a CSS grid!
+      </p>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>8-BIT GAME SCHOOL &nbsp;|&nbsp; BUILD WITH HTML + CSS + JS</p>
+    <p style="margin-top:10px;" class="blink">▶ PRESS START ◀</p>
+  </footer>
+
+</body>
+</html>

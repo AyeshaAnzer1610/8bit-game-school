@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Game 2 — Dodge Blaster 🚀</title>
+
+  <!--
+  ╔══════════════════════════════════════════════════════╗
+  ║   GAME 2: DODGE BLASTER                             ║
+  ║   Difficulty: ⭐⭐ INTERMEDIATE                      ║
+  ║                                                      ║
+  ║   WHAT YOU WILL LEARN:                               ║
+  ║   ✅ Keyboard input (ArrowLeft / ArrowRight)         ║
+  ║   ✅ setInterval game loop                           ║
+  ║   ✅ Creating elements dynamically with JS           ║
+  ║   ✅ Collision detection (bounding box)              ║
+  ║   ✅ Increasing difficulty over time                 ║
+  ╚══════════════════════════════════════════════════════╝
+
+  HOW TO PLAY:
+  - Use ← → Arrow Keys (or A / D) to move your ship
+  - Dodge the falling meteors
+  - The longer you survive, the faster they fall!
+  -->
+
+  <style>
+
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    :root {
+      --bg:     #050510;
+      --green:  #39ff14;
+      --red:    #ff2244;
+      --yellow: #ffe600;
+      --blue:   #00cfff;
+      --purple: #b400ff;
+      --font:   'Press Start 2P', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      font-family: var(--font);
+      color: white;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ── Starfield background ────────────────────────────── */
+    /* We create 3 layers of stars with box-shadow */
+    #stars {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Each star layer has different speeds */
+    .star-layer {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: white;
+      border-radius: 50%;
+      animation: fall-stars linear infinite;
+    }
+
+    @keyframes fall-stars {
+      from { transform: translateY(-100vh); }
+      to   { transform: translateY(100vh); }
+    }
+
+    /* ── HUD ─────────────────────────────────────────────── */
+    #hud {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: rgba(0,0,0,0.7);
+      border-bottom: 2px solid var(--blue);
+      font-size: clamp(7px, 1.8vw, 11px);
+    }
+
+    #score-display { color: var(--blue); }
+    #lives-display { color: var(--red); }
+    #level-display { color: var(--yellow); }
+
+    /* ── Arena ───────────────────────────────────────────── */
+    #arena {
+      position: relative;
+      width: 100%;
+      height: calc(100vh - 50px);
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    /* ── Player Ship ─────────────────────────────────────── 
+       We use position:absolute so we can move it with JS.   */
+    #ship {
+      position: absolute;
+      bottom: 40px;         /* starts near the bottom */
+      font-size: 40px;
+      transition: left 0.1s linear; /* smooth horizontal movement */
+      filter: drop-shadow(0 0 10px var(--blue));
+      z-index: 5;
+      user-select: none;
+    }
+
+    /* Ship thruster flame */
+    #ship::after {
+      content: '🔥';
+      position: absolute;
+      bottom: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 20px;
+      animation: thruster 0.15s steps(2) infinite;
+    }
+
+    @keyframes thruster {
+      0%   { opacity: 1;   transform: translateX(-50%) scaleY(1); }
+      50%  { opacity: 0.7; transform: translateX(-50%) scaleY(0.7); }
+      100% { opacity: 1;   transform: translateX(-50%) scaleY(1); }
+    }
+
+    /* ── Meteors (created by JS) ─────────────────────────── 
+       We give them a class and style it here in CSS.         */
+    .meteor {
+      position: absolute;
+      font-size: 30px;
+      pointer-events: none;
+      animation: rotate-meteor 1s linear infinite;
+      z-index: 4;
+    }
+
+    @keyframes rotate-meteor {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* ── Explosion effect ────────────────────────────────── */
+    .explosion {
+      position: absolute;
+      font-size: 50px;
+      pointer-events: none;
+      animation: explode 0.5s ease-out forwards;
+      z-index: 6;
+    }
+
+    @keyframes explode {
+      0%   { opacity: 1; transform: scale(0.5); }
+      60%  { opacity: 1; transform: scale(1.5); }
+      100% { opacity: 0; transform: scale(2); }
+    }
+
+    /* ── Shield flash (when hit) ─────────────────────────── */
+    #arena.hit {
+      animation: screen-shake 0.3s ease-out;
+    }
+
+    @keyframes screen-shake {
+      0%   { transform: translateX(0); }
+      20%  { transform: translateX(-10px); }
+      40%  { transform: translateX(10px); }
+      60%  { transform: translateX(-5px); }
+      80%  { transform: translateX(5px); }
+      100% { transform: translateX(0); }
+    }
+
+    /* ── Overlay screens ─────────────────────────────────── */
+    .overlay {
+      display: none;
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.88);
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 20;
+    }
+
+    .overlay.active { display: flex; }
+
+    .overlay h1 {
+      font-size: clamp(14px, 4vw, 28px);
+      color: var(--blue);
+      text-shadow: 3px 3px 0 #003366;
+    }
+
+    .overlay h2 {
+      font-size: clamp(12px, 3vw, 20px);
+      color: var(--red);
+    }
+
+    .overlay p {
+      font-size: clamp(7px, 1.5vw, 10px);
+      color: #aaa;
+      text-align: center;
+      line-height: 2.2;
+      max-width: 420px;
+    }
+
+    .overlay .stat {
+      font-size: clamp(8px, 2vw, 12px);
+      color: var(--green);
+    }
+
+    /* ── Buttons ─────────────────────────────────────────── */
+    .btn {
+      font-family: var(--font);
+      font-size: clamp(8px, 1.8vw, 12px);
+      padding: 12px 28px;
+      border: none;
+      cursor: pointer;
+      letter-spacing: 1px;
+      margin-top: 8px;
+    }
+
+    .btn-blue   { background: var(--blue);   color: #000; }
+    .btn-green  { background: var(--green);  color: #000; }
+    .btn-link   { background: transparent; color: #555; text-decoration: none; font-size: 8px; }
+
+    .btn:hover { filter: brightness(1.3); transform: scale(1.05); }
+
+    /* ── Controls hint ───────────────────────────────────── */
+    #controls-hint {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 7px;
+      color: #333;
+      z-index: 10;
+      white-space: nowrap;
+    }
+
+    /* ── Lives icons ─────────────────────────────────────── */
+    #lives-icons {
+      letter-spacing: 2px;
+    }
+
+    .nav-back {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      font-family: var(--font);
+      font-size: 8px;
+      color: #333;
+      text-decoration: none;
+      z-index: 100;
+    }
+    .nav-back:hover { color: var(--blue); }
+
+  </style>
+</head>
+<body>
+
+  <a class="nav-back" href="index.html">◀ BACK</a>
+
+  <!-- Starfield (decorative) -->
+  <div id="stars"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <span id="score-display">SCORE: <span id="score">0</span></span>
+    <span id="level-display">LEVEL: <span id="level">1</span></span>
+    <span id="lives-display">LIVES: <span id="lives-icons">❤️❤️❤️</span></span>
+  </div>
+
+  <!-- Arena -->
+  <div id="arena">
+
+    <!-- Player ship -->
+    <div id="ship">🚀</div>
+
+    <!-- Controls hint -->
+    <div id="controls-hint">← → ARROW KEYS or A / D to move</div>
+
+    <!-- Start Screen -->
+    <div class="overlay active" id="start-screen">
+      <h1>🚀 DODGE BLASTER</h1>
+      <p>
+        Meteors are falling from space!<br>
+        Dodge them all to survive.<br>
+        You have 3 lives — don't waste them!<br><br>
+        Use ← → Arrow Keys or A / D to move.
+      </p>
+      <button class="btn btn-blue" onclick="startGame()">▶ START GAME</button>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div class="overlay" id="game-over">
+      <h2>💥 GAME OVER!</h2>
+      <p class="stat">FINAL SCORE: <span id="final-score">0</span></p>
+      <p class="stat">LEVEL REACHED: <span id="final-level">1</span></p>
+      <button class="btn btn-green" onclick="startGame()">▶ PLAY AGAIN</button>
+      <a class="btn btn-link" href="index.html">BACK TO MENU</a>
+    </div>
+
+  </div>
+
+  <script>
+
+    // ════════════════════════════════════════════════════
+    //   STEP 1: GET ALL OUR HTML ELEMENTS
+    // ════════════════════════════════════════════════════
+    const ship       = document.getElementById('ship');
+    const arena      = document.getElementById('arena');
+    const scoreEl    = document.getElementById('score');
+    const levelEl    = document.getElementById('level');
+    const livesEl    = document.getElementById('lives-icons');
+    const gameOverEl = document.getElementById('game-over');
+    const startEl    = document.getElementById('start-screen');
+    const finalScoreEl = document.getElementById('final-score');
+    const finalLevelEl = document.getElementById('final-level');
+
+    // ════════════════════════════════════════════════════
+    //   STEP 2: GAME STATE VARIABLES
+    // ════════════════════════════════════════════════════
+    let score        = 0;
+    let lives        = 3;
+    let level        = 1;
+    let shipX        = 0;    // ship's horizontal position in pixels
+    let gameRunning  = false;
+    let keys         = {};   // tracks which keys are currently held down
+
+    // These are timer IDs — we save them so we can stop them later
+    let gameLoop     = null;
+    let meteorSpawn  = null;
+    let scoreLoop    = null;
+    let levelLoop    = null;
+
+    const SHIP_SPEED = 8;    // pixels per frame the ship moves
+
+    // ════════════════════════════════════════════════════
+    //   STEP 3: GENERATE DECORATIVE STARS
+    // ════════════════════════════════════════════════════
+    function createStars() {
+      const starsDiv = document.getElementById('stars');
+      // Create 80 random star divs
+      for (let i = 0; i < 80; i++) {
+        const star = document.createElement('div');
+        star.className = 'star-layer';
+        star.style.left    = Math.random() * 100 + 'vw';
+        star.style.top     = Math.random() * 100 + 'vh';
+        star.style.opacity = Math.random() * 0.8 + 0.2;
+        // Each star has a slightly different speed
+        const dur = (Math.random() * 6 + 3) + 's';
+        star.style.animationDuration = dur;
+        star.style.animationDelay = (-Math.random() * 6) + 's'; // start at random point
+        starsDiv.appendChild(star);
+      }
+    }
+    createStars();
+
+    // ════════════════════════════════════════════════════
+    //   STEP 4: KEYBOARD INPUT
+    //   keydown → key is pressed
+    //   keyup   → key is released
+    //   We store both in `keys` object so we can check
+    //   multiple keys at once in the game loop.
+    // ════════════════════════════════════════════════════
+    document.addEventListener('keydown', function(e) {
+      keys[e.key] = true;   // mark this key as "pressed"
+
+      // Prevent the page from scrolling with arrow keys
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp'].includes(e.key)) {
+        e.preventDefault();
+      }
+    });
+
+    document.addEventListener('keyup', function(e) {
+      keys[e.key] = false;  // mark this key as "released"
+    });
+
+    // ════════════════════════════════════════════════════
+    //   STEP 5: THE GAME LOOP
+    //   This runs 60 times per second with setInterval.
+    //   Each run = 1 "frame" of the game.
+    // ════════════════════════════════════════════════════
+    function gameFrame() {
+      if (!gameRunning) return;
+
+      const arenaW   = arena.offsetWidth;
+      const shipW    = ship.offsetWidth || 40;
+
+      // ── Move ship based on which keys are held ──────
+      if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+        shipX -= SHIP_SPEED;
+      }
+      if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+        shipX += SHIP_SPEED;
+      }
+
+      // ── Clamp ship to arena boundaries ──────────────
+      // Math.max(0, x)        → never go below 0
+      // Math.min(max, x)      → never go above max
+      shipX = Math.max(0, Math.min(arenaW - shipW, shipX));
+
+      // Apply position to the ship
+      ship.style.left = shipX + 'px';
+
+      // ── Check collision with each meteor ────────────
+      checkCollisions();
+    }
+
+    // ════════════════════════════════════════════════════
+    //   STEP 6: CREATE A METEOR
+    //   We dynamically create <div> elements and add them
+    //   to the arena. They fall using setInterval.
+    // ════════════════════════════════════════════════════
+    const METEOR_EMOJIS = ['☄️', '🪨', '⭕', '💢', '🔴'];
+
+    function spawnMeteor() {
+      if (!gameRunning) return;
+
+      // Create new div
+      const meteor = document.createElement('div');
+      meteor.className = 'meteor';
+      meteor.textContent = METEOR_EMOJIS[Math.floor(Math.random() * METEOR_EMOJIS.length)];
+
+      // Random horizontal position
+      const arenaW = arena.offsetWidth;
+      meteor.style.left = Math.random() * (arenaW - 50) + 'px';
+      meteor.style.top  = '-50px'; // start above the screen
+
+      // Add to arena
+      arena.appendChild(meteor);
+
+      // Fall speed increases with level
+      const fallSpeed = 3 + level * 1.5;
+
+      // Move meteor downward every 16ms (~60fps)
+      const fallTimer = setInterval(function() {
+        if (!gameRunning) {
+          clearInterval(fallTimer);
+          meteor.remove();
+          return;
+        }
+
+        // Move down by fallSpeed pixels
+        const currentTop = parseFloat(meteor.style.top) || 0;
+        meteor.style.top = (currentTop + fallSpeed) + 'px';
+
+        // If meteor goes past the bottom, remove it
+        if (currentTop > arena.offsetHeight + 60) {
+          clearInterval(fallTimer);
+          meteor.remove();
+        }
+      }, 16);
+    }
+
+    // ════════════════════════════════════════════════════
+    //   STEP 7: COLLISION DETECTION
+    //   We compare the bounding boxes (rectangles) of the
+    //   ship and each meteor. If they overlap = collision!
+    // ════════════════════════════════════════════════════
+    function checkCollisions() {
+      // getBoundingClientRect() returns the position/size of an element
+      const shipRect = ship.getBoundingClientRect();
+
+      // Get all current meteors on screen
+      const meteors = document.querySelectorAll('.meteor');
+
+      meteors.forEach(function(meteor) {
+        const meteorRect = meteor.getBoundingClientRect();
+
+        // Check if the two rectangles overlap
+        // Two rectangles DON'T overlap if:
+        //   one is fully to the left, right, above, or below the other
+        const noOverlap =
+          shipRect.right  < meteorRect.left  + 10 ||
+          shipRect.left   > meteorRect.right - 10 ||
+          shipRect.bottom < meteorRect.top   + 10 ||
+          shipRect.top    > meteorRect.bottom - 10;
+
+        // If they DO overlap (noOverlap is false):
+        if (!noOverlap) {
+          // Remove the meteor
+          meteor.remove();
+
+          // Show explosion
+          createExplosion(
+            parseFloat(meteor.style.left),
+            parseFloat(meteor.style.top)
+          );
+
+          // Lose a life
+          loseLife();
+        }
+      });
+    }
+
+    // ════════════════════════════════════════════════════
+    //   STEP 8: LOSE A LIFE
+    // ════════════════════════════════════════════════════
+    function loseLife() {
+      lives--;
+
+      // Update hearts display
+      const heartIcons = ['', '❤️', '❤️❤️', '❤️❤️❤️'];
+      livesEl.textContent = heartIcons[lives] || '💀';
+
+      // Screen shake effect
+      arena.classList.add('hit');
+      setTimeout(() => arena.classList.remove('hit'), 300);
+
+      // Game over when no lives left
+      if (lives <= 0) {
+        endGame();
+      }
+    }
+
+    // ════════════════════════════════════════════════════
+    //   STEP 9: EXPLOSION EFFECT
+    // ════════════════════════════════════════════════════
+    function createExplosion(x, y) {
+      const exp = document.createElement('div');
+      exp.className = 'explosion';
+      exp.textContent = '💥';
+      exp.style.left = x + 'px';
+      exp.style.top  = y + 'px';
+      arena.appendChild(exp);
+      setTimeout(() => exp.remove(), 500);
+    }
+
+    // ════════════════════════════════════════════════════
+    //   STEP 10: SCORE & LEVEL PROGRESSION
+    // ════════════════════════════════════════════════════
+    function startScoreCounter() {
+      // Add points every second
+      scoreLoop = setInterval(function() {
+        if (!gameRunning) return;
+        score += level * 10;      // more points at higher levels
+        scoreEl.textContent = score;
+      }, 1000);
+    }
+
+    function startLevelProgression() {
+      // Increase level every 15 seconds
+      levelLoop = setInterval(function() {
+        if (!gameRunning) return;
+        level++;
+        levelEl.textContent = level;
+
+        // Speed up meteor spawns at higher levels
+        clearInterval(meteorSpawn);
+        const spawnRate = Math.max(400, 1500 - level * 100);
+        meteorSpawn = setInterval(spawnMeteor, spawnRate);
+      }, 15000);
+    }
+
+    // ════════════════════════════════════════════════════
+    //   STEP 11: START / END GAME
+    // ════════════════════════════════════════════════════
+    function startGame() {
+      // Reset state
+      score       = 0;
+      lives       = 3;
+      level       = 1;
+      gameRunning = true;
+
+      // Reset displays
+      scoreEl.textContent = '0';
+      levelEl.textContent = '1';
+      livesEl.textContent = '❤️❤️❤️';
+
+      // Hide overlays
+      gameOverEl.classList.remove('active');
+      startEl.classList.remove('active');
+
+      // Clear old meteors
+      document.querySelectorAll('.meteor').forEach(m => m.remove());
+
+      // Position ship in center
+      shipX = (arena.offsetWidth / 2) - 20;
+      ship.style.left = shipX + 'px';
+
+      // Start all loops
+      // setInterval(function, milliseconds) — runs repeatedly
+      gameLoop    = setInterval(gameFrame, 16);          // ~60fps
+      meteorSpawn = setInterval(spawnMeteor, 1500);      // meteors
+      startScoreCounter();
+      startLevelProgression();
+    }
+
+    function endGame() {
+      gameRunning = false;
+
+      // Stop all loops
+      clearInterval(gameLoop);
+      clearInterval(meteorSpawn);
+      clearInterval(scoreLoop);
+      clearInterval(levelLoop);
+
+      // Show game over screen
+      finalScoreEl.textContent = score;
+      finalLevelEl.textContent = level;
+      gameOverEl.classList.add('active');
+    }
+
+  </script>
+
+</body>
+</html>
